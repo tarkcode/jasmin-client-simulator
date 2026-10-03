@@ -45,6 +45,8 @@ input,textarea{width:100%;background:var(--bg);border:1px solid var(--border);
 input:focus,textarea:focus{outline:none;border-color:var(--accent);}
 input[type=number]{-moz-appearance:textfield;}
 textarea{resize:vertical;min-height:56px;}
+.to-hint{font-size:11px;color:var(--muted);margin-top:4px;}
+.to-hint span{color:var(--accent);font-weight:600;}
 .row2{display:flex;gap:10px;}
 .row2>div{flex:1;min-width:0;}
 /* buttons */
@@ -107,11 +109,12 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
         <label for="fromAddr">From</label>
         <input id="fromAddr" value="TEST">
       </div>
-      <div>
-        <label for="toAddr">To</label>
-        <input id="toAddr" value="+10000000000">
-      </div>
     </div>
+    <label for="toAddr">To &mdash; one number per line, or comma-separated</label>
+    <textarea id="toAddr" rows="5">+10000000001
++10000000002
++10000000003</textarea>
+    <div class="to-hint" id="toHint"><span id="toCount">3</span> numbers loaded &mdash; burst cycles through them round-robin.</div>
     <label for="content">Content</label>
     <textarea id="content">Fake DLR test message</textarea>
 
@@ -119,7 +122,7 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
     <div class="row2">
       <div>
         <label for="burstCount">Count</label>
-        <input id="burstCount" type="number" min="1" max="100" value="1">
+        <input id="burstCount" type="number" min="1" max="500" value="10">
       </div>
       <div>
         <label for="burstDelay">Delay (ms)</label>
@@ -207,13 +210,13 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
 
   function qs(id) { return document.getElementById(id).value.trim(); }
 
-  async function sendOne(n) {
+  async function sendOne(n, to) {
     var base   = qs('apiBase').replace(/\/+$/,'');
     var params = new URLSearchParams({
       username : qs('username'),
       password : qs('password'),
       'from'   : qs('fromAddr'),
-      to       : qs('toAddr'),
+      to       : to,
       content  : document.getElementById('content').value
     });
     var url  = base + '/api/send/?' + params.toString();
@@ -241,13 +244,29 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
     updateSummary();
   }
 
+  function parseNumbers() {
+    var raw  = document.getElementById('toAddr').value;
+    var nums = raw.split(/[,\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return nums.length ? nums : [''];
+  }
+
+  function updateToHint() {
+    var countEl = document.getElementById('toCount');
+    if (countEl) countEl.textContent = parseNumbers().length;
+  }
+
+  document.getElementById('toAddr').addEventListener('input', updateToHint);
+  updateToHint();
+
   sendBtn.addEventListener('click', async function () {
     var burst = Math.max(1, parseInt(qs('burstCount'), 10) || 1);
     var delay = Math.max(0, parseInt(qs('burstDelay'), 10) || 0);
+    var nums  = parseNumbers();
     sendBtn.disabled = true;
     try {
       for (var i = 0; i < burst; i++) {
-        await sendOne(total + 1);
+        var to = nums[i % nums.length];
+        await sendOne(total + 1, to);
         if (i < burst - 1 && delay > 0) {
           await new Promise(function(r){ setTimeout(r, delay); });
         }
