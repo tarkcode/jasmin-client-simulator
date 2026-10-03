@@ -1,0 +1,12 @@
+{
+  "name": "jasmin-client-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone client-facing SMS sender tool for testing fake-DLR interception against a Jasmin Web Panel deployment, from the outside, as a real client would.",
+  "scripts": {
+    "start": "serve -s . -l ${PORT:-3000}"
+  },
+  "dependencies": {
+    "serve": "14.2.3"
+  }
+}
