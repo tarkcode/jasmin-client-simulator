@@ -21,26 +21,29 @@ integration does. Features:
 
 ## Running locally
 
-Just open `index.html` directly in a browser. No build step, no server.
+Option 1 (with proxy — recommended):
+```bash
+npm start
+```
+Open `http://localhost:3000` in your browser. The built-in proxy handles communication with the Jasmin API without CORS issues.
 
-> Note: opening as `file://` or hosting on a different origin than the
-> target Jasmin Web Panel will hit CORS restrictions unless the target
-> server sends permissive CORS headers on `/api/send/`, or you launch
-> Chrome with `--disable-web-security` against a throwaway profile for
-> testing only.
+Option 2 (standalone):
+Open `index.html` directly in a browser (`file://`).
 
 ## Deploying on Railway
 
-This repo includes a minimal Node `serve` setup so Railway can host it as a
-public URL (avoids `file://` CORS issues since requests then originate from
-a real HTTPS origin):
+When deployed on Railway (served over HTTPS at `https://<app>.up.railway.app`), browsers will block direct requests to `http://` Jasmin panel servers due to **Mixed Content** and **CORS** restrictions.
 
+This repository includes a lightweight Node.js server (`server.js`) that solves this:
+- Serves `index.html` on Railway's `$PORT`.
+- Provides an `/api/proxy` endpoint that forwards requests server-to-server to the target Jasmin Web Panel.
+- Completely avoids browser Mixed Content blocking and CORS issues.
+
+Deployment steps:
 1. Push this repo to GitHub.
 2. In Railway, **New Project → GitHub Repository** → select this repo.
-3. Railway auto-detects Node via Nixpacks and runs `npm start`, which serves
-   `index.html` on the assigned `$PORT`.
-4. Open the generated `*.up.railway.app` URL and point it at your Jasmin
-   Web Panel's `/api/send/` endpoint.
+3. Railway auto-detects Node via Nixpacks and runs `npm start` (`node server.js`).
+4. Open the generated `*.up.railway.app` URL. The "Route via server proxy" option is enabled automatically.
 
 ## Usage
 

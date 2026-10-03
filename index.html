@@ -44,6 +44,8 @@ input,textarea{width:100%;background:var(--bg);border:1px solid var(--border);
   font-family:inherit;transition:border-color .12s;}
 input:focus,textarea:focus{outline:none;border-color:var(--accent);}
 input[type=number]{-moz-appearance:textfield;}
+input[type=checkbox]{width:auto;cursor:pointer;}
+label.inline{display:inline-flex;align-items:center;gap:7px;margin:10px 0 0;cursor:pointer;color:var(--text);font-size:12px;}
 textarea{resize:vertical;min-height:56px;}
 .to-hint{font-size:11px;color:var(--muted);margin-top:4px;}
 .to-hint span{color:var(--accent);font-weight:600;}
@@ -102,6 +104,10 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
         <input id="password" type="password" placeholder="SMPP password">
       </div>
     </div>
+    <label class="inline" for="useProxy">
+      <input type="checkbox" id="useProxy" checked>
+      <span>Route via server proxy <span class="to-hint" id="proxyHint" style="display:inline;margin:0;">(fixes HTTPS Mixed Content &amp; CORS)</span></span>
+    </label>
 
     <div class="sect">Message</div>
     <div class="row2">
@@ -208,10 +214,26 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
     logBody.prepend(tr);
   }
 
+  var useProxyEl = document.getElementById('useProxy');
+  var proxyHint  = document.getElementById('proxyHint');
+
+  if (useProxyEl) {
+    if (window.location.protocol === 'file:') {
+      useProxyEl.checked = false;
+      useProxyEl.disabled = true;
+      if (proxyHint) proxyHint.textContent = '(disabled: running locally via file://)';
+    } else if (window.location.protocol === 'https:') {
+      useProxyEl.checked = true;
+    }
+  }
+
   function qs(id) { return document.getElementById(id).value.trim(); }
 
   async function sendOne(n, to) {
-    var base   = qs('apiBase').replace(/\/+$/,'');
+    var base = qs('apiBase').replace(/\/+$/,'');
+    if (!/^https?:\/\//i.test(base)) {
+      base = 'http://' + base;
+    }
     var params = new URLSearchParams({
       username : qs('username'),
       password : qs('password'),
@@ -219,11 +241,22 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
       to       : to,
       content  : document.getElementById('content').value
     });
-    var url  = base + '/api/send/?' + params.toString();
+    var targetUrl = base + '/api/send/?' + params.toString();
+    var useProxy = useProxyEl ? useProxyEl.checked : (window.location.protocol !== 'file:');
+
     var t0   = performance.now();
     var time = new Date().toLocaleTimeString();
     try {
-      var resp = await fetch(url, { method: 'GET' });
+      var resp;
+      if (useProxy && window.location.protocol !== 'file:') {
+        resp = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: targetUrl })
+        });
+      } else {
+        resp = await fetch(targetUrl, { method: 'GET' });
+      }
       var body = await resp.text();
       var ms   = Math.round(performance.now() - t0);
       var cls  = classify(resp.status, body);
@@ -237,9 +270,13 @@ td.body-col{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ell
     } catch (e) {
       var ms2 = Math.round(performance.now() - t0);
       total++; errCount++;
+      var errorMsg = e.message;
+      if (window.location.protocol === 'https:' && !useProxy && targetUrl.startsWith('http:')) {
+        errorMsg += ' (Mixed Content: check "Route via server proxy" to fix)';
+      }
       addRow({ n:n, time:time, status:'\u2014', ms:ms2,
                err:true, fake:false,
-               body:'Network error: ' + e.message });
+               body:'Network error: ' + errorMsg });
     }
     updateSummary();
   }
